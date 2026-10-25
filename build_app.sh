@@ -22,6 +22,9 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BUILD/CropAdvisor" "$APP/Contents/MacOS/CropAdvisor"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
+# CI sets these from the release tag and run number; local builds keep the plist's values.
+[[ -n "${APP_VERSION:-}" ]] && plutil -replace CFBundleShortVersionString -string "$APP_VERSION" "$APP/Contents/Info.plist"
+[[ -n "${APP_BUILD:-}" ]] && plutil -replace CFBundleVersion -string "$APP_BUILD" "$APP/Contents/Info.plist"
 [[ -f Resources/AppIcon.icns ]] && cp Resources/AppIcon.icns "$APP/Contents/Resources/"
 codesign --force --sign - "$APP" >/dev/null 2>&1 || true
 
