@@ -42,6 +42,28 @@ to regenerate `Resources/AppIcon.icns`.
 
 Open a photo with ⌘O, drag it onto the window, or use Finder's *Open With ▸ CropAdvisor*.
 
+## Releases
+
+Built apps are on the [Releases](../../releases) page. Download `CropAdvisor.zip` and unzip it.
+The app has an ad-hoc signature but isn't notarized, so macOS blocks it the first time. Right-click
+it and choose *Open*, or run `xattr -dr com.apple.quarantine CropAdvisor.app`.
+
+GitHub Actions (`.github/workflows/build.yml`) builds the app on every push to `main` and on every
+pull request, and keeps the zip as a run artifact. To publish a release, tag a commit and push the tag:
+
+```sh
+git tag v1.2
+git push origin v1.2
+```
+
+The workflow builds the app with its version set from the tag (1.2) and its build number set from
+the workflow run, then creates a release with `CropAdvisor.zip` attached and release notes generated
+from the commits since the previous tag. Use tags rather than GitHub's *Draft a new release*
+button: a release created there already exists, so the workflow's release step fails.
+
+Local builds take their version from `Resources/Info.plist`, unless you set one:
+`APP_VERSION=1.2 APP_BUILD=7 ./build_app.sh`.
+
 ## How it works
 
 Crop Advisor combines Apple's on-device machine learning, which works out *what is in* the photo,
