@@ -1,0 +1,24 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build app
+        run: ./build_app.sh
+
+      - name: Zip app
+        run: ditto -c -k --keepParent build/CropAdvisor.app CropAdvisor.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CropAdvisor
+          path: CropAdvisor.zip
