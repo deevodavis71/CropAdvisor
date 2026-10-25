@@ -1,0 +1,43 @@
+# Build output
+/build/
+.build/
+*.app
+*.dSYM/
+*.dSYM.zip
+
+# Swift Package Manager
+.swiftpm/
+Package.resolved
+
+# Xcode
+DerivedData/
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+*.xccheckout
+*.moved-aside
+*.hmap
+*.ipa
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+Icon?
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*~
+
+# Photos and exported crops, in case any are saved inside the repo
+*.NEF
+*.nef
+*.dop
+*-cropped.jpg
+*-cropped.tiff
+*-cropped.heic
