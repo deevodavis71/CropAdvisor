@@ -73,10 +73,6 @@ struct ContentView: View {
                     ForEach(ExportFormat.allCases, id: \.self) { format in
                         Button(format.rawValue) { model.export(format) }
                     }
-                    if model.sidecar != nil {
-                        Divider()
-                        Button("Update PhotoLab Crop") { model.updateSidecar() }
-                    }
                 } label: { Label("Export", systemImage: "square.and.arrow.up") }
                 .disabled(model.result == nil)
                 .help("Export the cropped photo at full resolution")

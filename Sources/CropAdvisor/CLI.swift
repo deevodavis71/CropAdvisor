@@ -1,11 +1,10 @@
 import Foundation
 
-/// `CropAdvisor --analyze <photo> [--export <out.jpg>] [--dop]` prints the advice without the UI;
-/// `--dop` writes the camera-ratio crop into the photo's PhotoLab sidecar.
+/// `CropAdvisor --analyze <photo> [--export <out.jpg>]` prints the advice without the UI.
 enum CLI {
     static func run(_ args: [String]) -> Int32 {
         guard let i = args.firstIndex(of: "--analyze"), i + 1 < args.count else {
-            print("usage: CropAdvisor --analyze <photo> [--export <out.jpg>] [--dop] [--level auto|on|off]")
+            print("usage: CropAdvisor --analyze <photo> [--export <out.jpg>] [--level auto|on|off]")
             return 2
         }
         let url = URL(fileURLWithPath: args[i + 1])
@@ -38,13 +37,6 @@ enum CLI {
                 let out = URL(fileURLWithPath: args[j + 1])
                 try Exporter.export(source: url, crop: best.rect, rotation: s.appliedRotation, to: out, format: .jpeg)
                 print("\nExported best crop to \(out.path)")
-            }
-            if args.contains("--dop") {
-                // Same default as the app: the camera-ratio suggestion.
-                guard let dop = DxOSidecar.url(for: url) else { print("\nNo PhotoLab sidecar"); return 1 }
-                let pick = result.suggestions.first { $0.aspect == .original && !$0.isUncropped } ?? result.suggestions[0]
-                try DxOSidecar.update(dop, crop: pick.rect, result: result)
-                print("\nWrote \(pick.aspectLabel) crop \(fmt(pick.rect)) to \(dop.path)")
             }
             return 0
         } catch {

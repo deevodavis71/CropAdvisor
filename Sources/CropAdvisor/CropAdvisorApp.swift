@@ -38,9 +38,6 @@ struct CropAdvisorApp: App {
                         .keyboardShortcut(format == .jpeg ? KeyboardShortcut("e") : nil)
                         .disabled(delegate.model.result == nil)
                 }
-                Button("Update PhotoLab Crop") { delegate.model.updateSidecar() }
-                    .keyboardShortcut("e", modifiers: [.command, .shift])
-                    .disabled(delegate.model.sidecar == nil)
             }
         }
     }
