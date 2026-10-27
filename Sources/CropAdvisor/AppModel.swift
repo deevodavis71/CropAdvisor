@@ -14,6 +14,8 @@ final class AppModel {
 
     var phase: Phase = .empty
     var result: AnalysisResult?
+    /// The photo's DxO PhotoLab sidecar, if it has one.
+    var sidecar: DxOSidecar?
     var selectedID: UUID?
     /// The crop currently shown; differs from the selected suggestion after a manual adjustment.
     var crop: CGRect = CGRect(x: 0, y: 0, width: 1, height: 1)
@@ -94,6 +96,7 @@ final class AppModel {
             switch outcome {
             case .success(let r):
                 result = r
+                sidecar = DxOSidecar.url(for: url).flatMap { try? DxOSidecar(url: $0) }
                 phase = .ready
                 NSDocumentController.shared.noteNewRecentDocumentURL(url)
                 // Prefer the camera's own aspect ratio, even when another shape scores higher.
@@ -228,6 +231,23 @@ final class AppModel {
             }
             try? await Task.sleep(for: .seconds(4))
             if exportMessage?.hasPrefix("Exporting") == false { exportMessage = nil }
+        }
+    }
+
+    /// Writes the current crop and levelling into the photo's PhotoLab sidecar.
+    func updateSidecar() {
+        guard let result, let url = sidecar?.url else { return }
+        let message: String
+        do {
+            sidecar = try DxOSidecar.update(url, crop: crop, result: result)
+            message = "Updated the PhotoLab crop in \(url.lastPathComponent)"
+        } catch {
+            message = "Couldn’t update \(url.lastPathComponent): \(error.localizedDescription)"
+        }
+        exportMessage = message
+        Task {
+            try? await Task.sleep(for: .seconds(4))
+            if exportMessage == message { exportMessage = nil }
         }
     }
 }
