@@ -90,6 +90,10 @@ struct InspectorView: View {
                     Text("Re-develops the RAW at full resolution and keeps the camera metadata. The NEF itself is never modified.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
+
+                if let sidecar = model.sidecar {
+                    PhotoLabSection(sidecar: sidecar, result: result)
+                }
             }
             .formStyle(.grouped)
         } else {
@@ -196,6 +200,42 @@ private struct CriterionBar: View {
             ProgressView(value: value)
                 .tint(value > 0.7 ? .green : (value > 0.4 ? .yellow : .orange))
         }
+    }
+}
+
+/// Writes the crop into the photo's DxO PhotoLab sidecar.
+private struct PhotoLabSection: View {
+    @Environment(AppModel.self) private var model
+    let sidecar: DxOSidecar
+    let result: AnalysisResult
+
+    var body: some View {
+        Section("DxO PhotoLab") {
+            Button("Update PhotoLab Crop") { model.updateSidecar() }
+            Text("Writes this crop\(result.scene.appliedRotation != 0 ? " and the horizon levelling" : "") into \(sidecar.url.lastPathComponent), replacing PhotoLab’s crop and horizon settings. The original sidecar is kept as a .bak file.")
+                .font(.caption).foregroundStyle(.secondary)
+            ForEach(notes, id: \.self) { note in
+                Label { Text(note).font(.caption) } icon: {
+                    Text(Image(systemName: "exclamationmark.triangle.fill")).foregroundStyle(.orange)
+                }
+            }
+        }
+    }
+
+    private var notes: [String] {
+        var notes: [String] = []
+        if sidecar.versionCount > 1 {
+            let copies = sidecar.versionCount - 1
+            notes.append("Only the master is updated; its \(copies) virtual cop\(copies == 1 ? "y is" : "ies are") left as they are.")
+        }
+        if sidecar.hasPerspectiveCorrection {
+            notes.append("Perspective correction is on in PhotoLab, so the crop may land slightly differently there.")
+        }
+        let exif = result.metadata.properties[kCGImagePropertyOrientation] as? Int ?? 1
+        if let o = sidecar.orientation, o != exif {
+            notes.append("PhotoLab shows this photo rotated differently, so the composition may look different there.")
+        }
+        return notes
     }
 }
 

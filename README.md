@@ -151,15 +151,37 @@ levels scenes with a bright sky and no people. Otherwise it shows a hint, and yo
   saliency heat map, side-by-side or stacked layout.
 - **Export** (⌘E) re-develops the RAW at full resolution and writes a cropped JPEG, 16-bit TIFF or HEIC
   with the camera's EXIF. The NEF is never modified.
+- **Update PhotoLab Crop** (⇧⌘E) appears when the photo has a DxO PhotoLab sidecar next to it
+  (`DSC_1234.NEF.dop`). It writes the crop, and any horizon levelling, into the sidecar, replacing
+  PhotoLab's crop and horizon settings. If the crop keeps the camera's ratio, PhotoLab's ratio lock
+  stays on.
+  The first time, the original sidecar is saved as `.dop.bak`. Only the master photo is changed,
+  not virtual copies. If PhotoLab already has the photo open, it may need to reload the sidecar to
+  show the change.
+
+### PhotoLab sidecar format
+
+`.dop` files are Lua-style text, and edits go in the master item's `Settings.Overrides`. These
+conventions were worked out from real PhotoLab 9 sidecars rather than documentation:
+
+- `CropRect = {x, y, w, h}` is normalised to the raw sensor frame, top-left origin, before EXIF or
+  PhotoLab rotation. Portrait shots are therefore stored sideways.
+- With the horizon levelled, the rect is normalised to the bounding box of the rotated image.
+- `KeystoningHorizon` is in degrees, positive counter-clockwise.
+- `CropRatio` is `0` for the original ratio, `-1` for free, otherwise width ÷ height.
+
+The crop can land slightly differently in PhotoLab, because its lens and perspective corrections
+change the geometry a little.
 
 ## Command line
 
 ```sh
-build/CropAdvisor --analyze photo.NEF [--level auto|on|off] [--export best.jpg]
+build/CropAdvisor --analyze photo.NEF [--level auto|on|off] [--export best.jpg] [--dop]
 build/CropAdvisor --snapshot photo.NEF ui.png [--detections] [--heatmap] [--stacked]
 ```
 
-`--snapshot` renders the window to a PNG; it is how the screenshots above were made, e.g.
+`--dop` writes the camera-ratio suggestion into the photo's PhotoLab sidecar, as the app does by
+default. `--snapshot` renders the window to a PNG; it is how the screenshots above were made, e.g.
 `SNAP_WIDTH=1700 SNAP_HEIGHT=640 build/CropAdvisor --snapshot photo.NEF main.png`, then
 `sips -Z 1800 main.png`.
 
@@ -169,6 +191,7 @@ build/CropAdvisor --snapshot photo.NEF ui.png [--detections] [--heatmap] [--stac
 - `SceneAnalyzer.swift`: Vision saliency, faces and gaze, people, pose, animals, horizon line
 - `CropEngine.swift`: guideline scoring, candidate search and plain-English advice
 - `Pipeline.swift`: analysis pipeline, aesthetics re-ranking, full-resolution export
+- `DxOSidecar.swift`: reads and updates DxO PhotoLab `.dop` sidecars
 - `AppModel.swift`, `ContentView.swift`, `PreviewViews.swift`, `InspectorView.swift`: SwiftUI app
 
 Note: `Package.swift` is provided for Xcode users. The Command Line Tools on this machine have a
