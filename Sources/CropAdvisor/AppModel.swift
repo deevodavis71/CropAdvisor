@@ -31,6 +31,7 @@ final class AppModel {
     var showHeatmap = false
     var stacked = false
     var lockAspect = true
+    var showBreakdown = true
 
     // Transient view state, kept here because the Command Line Tools SDK lacks
     // the compiler plugin for SwiftUI's @State macro.

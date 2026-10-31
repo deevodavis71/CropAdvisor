@@ -177,12 +177,12 @@ change the geometry a little.
 
 ```sh
 build/CropAdvisor --analyze photo.NEF [--level auto|on|off] [--export best.jpg] [--dop]
-build/CropAdvisor --snapshot photo.NEF ui.png [--detections] [--heatmap] [--stacked]
+build/CropAdvisor --snapshot photo.NEF ui.png [--detections] [--heatmap] [--stacked] [--no-breakdown]
 ```
 
 `--dop` writes the camera-ratio suggestion into the photo's PhotoLab sidecar, as the app does by
 default. `--snapshot` renders the window to a PNG; it is how the screenshots above were made, e.g.
-`SNAP_WIDTH=1700 SNAP_HEIGHT=640 build/CropAdvisor --snapshot photo.NEF main.png`, then
+`SNAP_WIDTH=1700 SNAP_HEIGHT=820 build/CropAdvisor --snapshot photo.NEF main.png`, then
 `sips -Z 1800 main.png`.
 
 ## Source layout

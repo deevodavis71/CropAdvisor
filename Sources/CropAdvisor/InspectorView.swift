@@ -7,29 +7,24 @@ struct InspectorView: View {
         @Bindable var model = model
         if let result = model.result {
             Form {
-                Section("Photo") {
-                    LabeledContent("File", value: result.url.lastPathComponent)
-                    if let camera = result.metadata.camera { LabeledContent("Camera", value: camera) }
-                    if let lens = result.metadata.lens { LabeledContent("Lens", value: lens) }
-                    if let exposure = result.metadata.exposure { LabeledContent("Exposure", value: exposure) }
-                }
-
-                Section("Horizon") {
-                    horizonRow(result.scene)
-                    Picker("Level the horizon", selection: $model.level) {
-                        ForEach(LevelMode.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                Section {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(result.url.lastPathComponent).font(.headline)
+                        let details = [result.metadata.camera, result.metadata.lens, result.metadata.exposure].compactMap { $0 }
+                        if !details.isEmpty {
+                            Text(details.joined(separator: " · ")).font(.caption).foregroundStyle(.secondary)
+                        }
                     }
-                    .pickerStyle(.segmented)
-                    .disabled(!canStraighten(result.scene))
                 }
 
                 Section("Suggested crops") {
-                    ForEach(result.suggestions) { suggestion in
-                        SuggestionRow(suggestion: suggestion,
-                                      isBest: suggestion.id == result.suggestions.first?.id,
-                                      isSelected: suggestion.id == model.selectedID)
-                            .contentShape(Rectangle())
-                            .onTapGesture { model.select(suggestion) }
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 3), spacing: 6) {
+                        ForEach(result.suggestions) { suggestion in
+                            SuggestionTile(suggestion: suggestion,
+                                           isBest: suggestion.id == result.suggestions.first?.id,
+                                           isSelected: suggestion.id == model.selectedID)
+                                .onTapGesture { model.select(suggestion) }
+                        }
                     }
                 }
 
@@ -46,53 +41,66 @@ struct InspectorView: View {
                                 Text(Image(systemName: "exclamationmark.triangle.fill")).foregroundStyle(.orange)
                             }
                         }
-                    }
-
-                    if let px = model.cropPixelRect {
-                        Section("Crop box (pixels)") {
-                            CropBoxRows(rect: px, rotation: result.scene.appliedRotation)
-                        }
-                    }
-
-                    Section("Score breakdown") {
-                        ForEach(Criterion.allCases) { criterion in
-                            if let value = score.criteria[criterion] {
-                                CriterionBar(name: criterion.rawValue, value: value)
+                        DisclosureGroup("Score breakdown", isExpanded: $model.showBreakdown) {
+                            ForEach(Criterion.allCases) { criterion in
+                                if let value = score.criteria[criterion] {
+                                    CriterionBar(name: criterion.rawValue, value: value)
+                                }
                             }
-                        }
-                        if let a = score.aesthetic {
-                            CriterionBar(name: "Apple aesthetics model", value: a)
+                            if let a = score.aesthetic {
+                                CriterionBar(name: "Apple aesthetics model", value: a)
+                            }
                         }
                     }
                 }
 
                 Section("Adjust") {
-                    LabeledContent("Crop size") {
+                    HStack {
+                        Text("Size")
                         Slider(value: Binding(get: { model.cropScale }, set: { model.setCropScale($0) }),
                                in: 0.3...1) { editing in
                             if !editing { model.refreshAesthetic() }
                         }
+                        Toggle("Lock ratio", isOn: $model.lockAspect).toggleStyle(.checkbox)
                     }
-                    Toggle("Lock aspect ratio", isOn: $model.lockAspect)
-                    Text("In the Before view, drag inside the crop to move it, or drag a corner or edge to resize it (hold ⇧ to toggle the aspect lock). Scores update live.")
-                        .font(.caption).foregroundStyle(.secondary)
+                    .help("In the Before view, drag inside the crop to move it, or drag a corner or edge to resize it (hold ⇧ to toggle the aspect lock). Scores update live.")
+                    LabeledContent {
+                        Picker("Level the horizon", selection: $model.level) {
+                            ForEach(LevelMode.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                        }
+                        .pickerStyle(.segmented)
+                        .labelsHidden()
+                        .fixedSize()
+                        .disabled(!canStraighten(result.scene))
+                    } label: {
+                        Text("Horizon")
+                        Text(horizonStatus(result.scene))
+                    }
+                    .help("Level the horizon: Auto levels scenes that look like landscapes")
+                    if let px = model.cropPixelRect {
+                        CropBoxRow(rect: px, rotation: result.scene.appliedRotation)
+                    }
                     if model.isAdjusted {
                         Button("Reset to Suggestion") { model.resetToSuggestion() }
                     }
                 }
 
                 Section {
-                    Menu("Export Cropped Photo") {
-                        ForEach(ExportFormat.allCases, id: \.self) { format in
-                            Button(format.rawValue) { model.export(format) }
+                    HStack {
+                        Menu("Export") {
+                            ForEach(ExportFormat.allCases, id: \.self) { format in
+                                Button(format.rawValue) { model.export(format) }
+                            }
+                        }
+                        .fixedSize()
+                        .help("Re-develops the RAW at full resolution and keeps the camera metadata. The NEF itself is never modified.")
+                        Spacer()
+                        if let sidecar = model.sidecar {
+                            PhotoLabNotes(sidecar: sidecar, result: result)
+                            Button("Update PhotoLab Crop") { model.updateSidecar() }
+                                .help("Writes this crop\(result.scene.appliedRotation != 0 ? " and the horizon levelling" : "") into \(sidecar.url.lastPathComponent), replacing PhotoLab’s crop and horizon settings. The original sidecar is kept as a .bak file.")
                         }
                     }
-                    Text("Re-develops the RAW at full resolution and keeps the camera metadata. The NEF itself is never modified.")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-
-                if let sidecar = model.sidecar {
-                    PhotoLabSection(sidecar: sidecar, result: result)
                 }
             }
             .formStyle(.grouped)
@@ -107,26 +115,18 @@ struct InspectorView: View {
         return Pipeline.straightenRange.contains(abs(Double(a)) * 180 / .pi)
     }
 
-    @ViewBuilder
-    private func horizonRow(_ scene: SceneAnalysis) -> some View {
-        if let a = scene.detectedHorizonAngle {
-            let degrees = Double(a) * 180 / .pi
-            if abs(degrees) < Pipeline.straightenRange.lowerBound {
-                LabeledContent("Tilt", value: "Level")
-            } else if abs(degrees) > Pipeline.straightenRange.upperBound {
-                LabeledContent("Tilt", value: String(format: "%.1f° (looks intentional)", degrees))
-            } else {
-                LabeledContent("Tilt", value: String(format: scene.appliedRotation != 0 ? "%.1f° · levelled" : "%.1f° · not levelled", degrees))
-            }
-        } else {
-            LabeledContent("Tilt", value: "No horizon found")
-        }
+    private func horizonStatus(_ scene: SceneAnalysis) -> String {
+        guard let a = scene.detectedHorizonAngle else { return "No horizon found" }
+        let degrees = Double(a) * 180 / .pi
+        if abs(degrees) < Pipeline.straightenRange.lowerBound { return "Level" }
+        if abs(degrees) > Pipeline.straightenRange.upperBound { return String(format: "%.1f° tilt, looks intentional", degrees) }
+        return String(format: scene.appliedRotation != 0 ? "%.1f° tilt, levelled" : "%.1f° tilt, not levelled", degrees)
     }
 
     private func scoreHeader(_ score: CropScore) -> some View {
         HStack(alignment: .firstTextBaseline) {
             Text("\(Int((score.total * 100).rounded()))")
-                .font(.system(size: 34, weight: .semibold, design: .rounded))
+                .font(.system(size: 28, weight: .semibold, design: .rounded))
                 .monospacedDigit()
             Text("/ 100").foregroundStyle(.secondary)
             Spacer()
@@ -139,34 +139,44 @@ struct InspectorView: View {
     }
 }
 
-private struct SuggestionRow: View {
+/// One suggested crop in the grid: its shape, score and name, with a star on the best.
+private struct SuggestionTile: View {
     let suggestion: CropSuggestion
     let isBest: Bool
     let isSelected: Bool
 
     var body: some View {
-        HStack(spacing: 10) {
-            AspectGlyph(rect: suggestion.rect)
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
-                    Text(suggestion.aspectLabel).fontWeight(isSelected ? .semibold : .regular)
-                    if isBest {
-                        Text(suggestion.isUncropped ? "ALREADY STRONG" : "BEST")
-                            .font(.caption2.weight(.bold))
-                            .padding(.horizontal, 5).padding(.vertical, 1)
-                            .background(Color.accentColor.opacity(0.2), in: Capsule())
-                    }
+        VStack(spacing: 3) {
+            HStack(spacing: 5) {
+                AspectGlyph(rect: suggestion.rect)
+                Text("\(Int((suggestion.score.total * 100).rounded()))")
+                    .font(.body.monospacedDigit().weight(.medium))
+                if isBest {
+                    Text(Image(systemName: "star.fill")).font(.caption2).foregroundStyle(.yellow)
                 }
-                Text(String(format: "%.0f%% of frame", suggestion.rect.area * 100))
-                    .font(.caption).foregroundStyle(.secondary)
             }
-            Spacer()
-            Text("\(Int((suggestion.score.total * 100).rounded()))")
-                .font(.body.monospacedDigit().weight(.medium))
+            Text(suggestion.aspectLabel)
+                .font(.caption)
+                .fontWeight(isSelected ? .semibold : .regular)
+                .foregroundStyle(isSelected ? .primary : .secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
         }
-        .padding(.vertical, 2)
-        .padding(.horizontal, 6)
-        .background(isSelected ? Color.accentColor.opacity(0.15) : .clear, in: RoundedRectangle(cornerRadius: 6))
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 5)
+        .background(isSelected ? Color.accentColor.opacity(0.18) : Color.primary.opacity(0.04),
+                    in: RoundedRectangle(cornerRadius: 6))
+        .overlay {
+            if isSelected { RoundedRectangle(cornerRadius: 6).strokeBorder(Color.accentColor, lineWidth: 1.5) }
+        }
+        .contentShape(Rectangle())
+        .help(help)
+    }
+
+    private var help: String {
+        var text = String(format: "%@ · %.0f%% of frame", suggestion.aspectLabel, suggestion.rect.area * 100)
+        if isBest { text += suggestion.isUncropped ? " · Already strong uncropped" : " · Best" }
+        return text
     }
 }
 
@@ -182,7 +192,7 @@ private struct AspectGlyph: View {
                            width: rect.width * frame.width, height: rect.height * frame.height)
             ctx.fill(Path(r), with: .color(.accentColor.opacity(0.6)))
         }
-        .frame(width: 30, height: 20)
+        .frame(width: 24, height: 16)
     }
 }
 
@@ -191,34 +201,30 @@ private struct CriterionBar: View {
     let value: Double
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            HStack {
-                Text(name).font(.callout)
-                Spacer()
-                Text("\(Int((value * 100).rounded()))").font(.callout.monospacedDigit()).foregroundStyle(.secondary)
-            }
+        HStack(spacing: 8) {
+            Text(name).font(.callout)
+            Spacer()
             ProgressView(value: value)
+                .frame(width: 70)
                 .tint(value > 0.7 ? .green : (value > 0.4 ? .yellow : .orange))
+            Text("\(Int((value * 100).rounded()))")
+                .font(.callout.monospacedDigit()).foregroundStyle(.secondary)
+                .frame(width: 26, alignment: .trailing)
         }
     }
 }
 
-/// Writes the crop into the photo's DxO PhotoLab sidecar.
-private struct PhotoLabSection: View {
-    @Environment(AppModel.self) private var model
+/// Caveats about writing the crop into the photo's DxO PhotoLab sidecar, as a warning icon
+/// whose tooltip lists them.
+private struct PhotoLabNotes: View {
     let sidecar: DxOSidecar
     let result: AnalysisResult
 
     var body: some View {
-        Section("DxO PhotoLab") {
-            Button("Update PhotoLab Crop") { model.updateSidecar() }
-            Text("Writes this crop\(result.scene.appliedRotation != 0 ? " and the horizon levelling" : "") into \(sidecar.url.lastPathComponent), replacing PhotoLab’s crop and horizon settings. The original sidecar is kept as a .bak file.")
-                .font(.caption).foregroundStyle(.secondary)
-            ForEach(notes, id: \.self) { note in
-                Label { Text(note).font(.caption) } icon: {
-                    Text(Image(systemName: "exclamationmark.triangle.fill")).foregroundStyle(.orange)
-                }
-            }
+        if !notes.isEmpty {
+            Text(Image(systemName: "exclamationmark.triangle.fill"))
+                .foregroundStyle(.orange)
+                .help(notes.joined(separator: "\n"))
         }
     }
 
@@ -240,32 +246,40 @@ private struct PhotoLabSection: View {
 }
 
 /// The selected crop as a pixel bounding box in the full-resolution image.
-private struct CropBoxRows: View {
+private struct CropBoxRow: View {
     let rect: CGRect
     let rotation: CGFloat
 
     var body: some View {
-        Group {
-            LabeledContent("Top-left", value: "\(Int(rect.minX)), \(Int(rect.minY))")
-            LabeledContent("Bottom-right", value: "\(Int(rect.maxX)), \(Int(rect.maxY))")
-            LabeledContent("Size", value: "\(Int(rect.width)) × \(Int(rect.height))")
-        }
-        .monospacedDigit()
-        .textSelection(.enabled)
-
-        HStack {
+        LabeledContent {
+            HStack(spacing: 6) {
+                Text(verbatim: "\(Int(rect.minX)), \(Int(rect.minY))  \(Int(rect.width)) × \(Int(rect.height))")
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .fixedSize()
+                    .textSelection(.enabled)
+                    .help("Top-left corner, then width × height. Bottom-right is \(Int(rect.maxX)), \(Int(rect.maxY)).")
+                copyButton
+            }
+        } label: {
+            Text("Pixels")
             if rotation != 0 {
-                Text(String(format: "In the levelled image (rotated %.1f°)", rotation * 180 / .pi))
-                    .font(.caption).foregroundStyle(.secondary)
+                Text(String(format: "Levelled %.1f°", rotation * 180 / .pi))
             }
-            Spacer()
-            Button("Copy") {
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(
-                    "x=\(Int(rect.minX)) y=\(Int(rect.minY)) width=\(Int(rect.width)) height=\(Int(rect.height))",
-                    forType: .string)
-            }
-            .help("Copy x, y, width and height")
         }
+        .help(rotation != 0 ? "Coordinates in the levelled image" : "")
+    }
+
+    private var copyButton: some View {
+        Button {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(
+                "x=\(Int(rect.minX)) y=\(Int(rect.minY)) width=\(Int(rect.width)) height=\(Int(rect.height))",
+                forType: .string)
+        } label: {
+            Text(Image(systemName: "doc.on.doc"))
+        }
+        .buttonStyle(.borderless)
+        .help("Copy x, y, width and height")
     }
 }

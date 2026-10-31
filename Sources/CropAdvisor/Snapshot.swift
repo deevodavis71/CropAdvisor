@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-/// `CropAdvisor --snapshot <photo> <out.png> [--stacked] [--detections] [--heatmap]`
+/// `CropAdvisor --snapshot <photo> <out.png> [--stacked] [--detections] [--heatmap] [--no-breakdown]`
 /// renders the main window offscreen, for checking the UI without screen recording rights.
 @MainActor
 enum Snapshot {
@@ -18,6 +18,7 @@ enum Snapshot {
         model.stacked = args.contains("--stacked")
         model.showDetections = args.contains("--detections")
         model.showHeatmap = args.contains("--heatmap")
+        model.showBreakdown = !args.contains("--no-breakdown")
         let host = NSHostingView(rootView: NavigationStack { ContentView() }.environment(model))
         let started = Date()
         let window = SnapshotWindow(contentRect: CGRect(x: 0, y: 0, width: CGFloat(Int(ProcessInfo.processInfo.environment["SNAP_WIDTH"] ?? "") ?? 1400), height: CGFloat(Int(ProcessInfo.processInfo.environment["SNAP_HEIGHT"] ?? "") ?? 820)),
