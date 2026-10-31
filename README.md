@@ -45,8 +45,15 @@ Open a photo with ⌘O, drag it onto the window, or use Finder's *Open With ▸ 
 ## Releases
 
 Built apps are on the [Releases](../../releases) page. Download `CropAdvisor.zip` and unzip it.
-The app has an ad-hoc signature but isn't notarized, so macOS blocks it the first time. Right-click
-it and choose *Open*, or run `xattr -dr com.apple.quarantine CropAdvisor.app`.
+The app has an ad-hoc signature but isn't notarized, so macOS blocks it the first time you open it.
+To allow it:
+
+1. Open the app and dismiss the warning.
+2. Go to **System Settings ▸ Privacy & Security**, scroll down to the Security section, and click
+   **Open Anyway** next to the message about CropAdvisor.
+3. Confirm with your password or Touch ID. The app opens, and it won't be blocked again.
+
+Alternatively, run `xattr -dr com.apple.quarantine CropAdvisor.app` in Terminal before opening it.
 
 GitHub Actions (`.github/workflows/build.yml`) builds the app on every push to `main` and on every
 pull request, and keeps the zip as a run artifact. To publish a release, tag a commit and push the tag:
